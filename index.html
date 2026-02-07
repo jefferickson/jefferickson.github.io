@@ -1,44 +1,1436 @@
+<!doctype html>
 <html lang="en">
-<head>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Jeff Erickson</title>
+        <style>
+            @font-face {
+                font-family: "Graebenbach";
+                src: url("assets/f/grae-f.ttf") format("truetype");
+                font-weight: normal;
+                font-style: normal;
+                font-display: swap;
+            }
 
-<title>Jeff Erickson</title>
+            body {
+                font-family: "Graebenbach", Arial, sans-serif;
+            }
 
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZPNRCL6S4X"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+            /* Body content area uses Arial by default */
+            .content-body {
+                font-family: Arial, sans-serif;
+            }
 
-  gtag('config', 'G-ZPNRCL6S4X');
-</script>
+            /* Utility for headings that should stay in the display font */
+            .font-display {
+                font-family: "Graebenbach", Arial, sans-serif;
+            }
+        </style>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script
+            defer
+            src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"
+        ></script>
+        <script>
+            // Alpine component for lazy-loading the media gallery
+            document.addEventListener("alpine:init", () => {
+                Alpine.data("mediaGallery", () => ({
+                    allImages: [],
+                    visibleImages: [],
+                    // 3 rows * 3 columns per row
+                    batchSize: 9,
+                    showJumpTop: false,
+                    selectedImage: null,
+                    lastScrollY: 0,
+                    viewerMaxHeight: null,
+                    init() {
+                        // Read the list of media files from the hidden source container
+                        this.allImages = Array.from(
+                            this.$refs.source.querySelectorAll("[data-image]"),
+                        ).map((el) => el.dataset.image);
 
-</head>
+                        // Initially show only the first 3 rows
+                        this.visibleImages = this.allImages.slice(
+                            0,
+                            this.batchSize,
+                        );
 
-<body>
+                        this.updateJumpTopFromScroll();
+                        this.setupObserver();
 
-<img src="assets/imgs/jeff_erickson_popout.jpg" width=150 />
+                        // Initialize from current URL hash (deep link support)
+                        this.updateFromHash();
 
-<h2 style="margin-bottom: 0px">Jeff Erickson</h2>
-<h3 style="margin-top: 0px">Software Engineering Manager @ <a href="https://www.posti.com">Posti</a></h3>
+                        // Keep component state in sync with URL hash changes
+                        window.addEventListener("hashchange", () => {
+                            this.updateFromHash();
+                        });
 
-Porvoo, Finland [<a href="https://www.openstreetmap.org/#map=14/60.3929/25.6645">Map</a>]<br />
-<a href="mailto:jeff@erick.so">jeff@erick.so</a> [<a href="assets/jeff_at_erick_so_public_key.asc">Public Key</a>]<br />
-<br />
+                        // Toggle the jump-to-top button based on scroll position
+                        window.addEventListener("scroll", () => {
+                            this.updateJumpTopFromScroll();
+                        });
 
-<b>M.A. Statistics</b> <i>Hunter College, City University of New York, New York, NY, USA. 2018.</i><br />
-<b>M.A. Mathematics Education</b> <i>New York University, New York, NY, USA. 2009.</i><br />
-<b>B.A. Mathematics</b> <i>University of Washington, Seattle, WA, USA. 2008.</i><br />
-<br />
+                        // Recalculate viewer max height on resize when a photo is selected
+                        window.addEventListener("resize", () => {
+                            if (this.selectedImage) {
+                                this.updateViewerMaxHeight();
+                            }
+                        });
+                    },
+                    loadMore() {
+                        const nextCount =
+                            this.visibleImages.length + this.batchSize;
+                        this.visibleImages = this.allImages.slice(0, nextCount);
+                    },
+                    setupObserver() {
+                        if (!("IntersectionObserver" in window)) {
+                            // Fallback: if IntersectionObserver isn't available, show everything
+                            this.visibleImages = this.allImages;
+                            this.updateJumpTopFromScroll();
+                            return;
+                        }
 
-<a href="assets/erickson_cv.pdf">CV</a><br />
-<br />
+                        const observer = new IntersectionObserver(
+                            (entries) => {
+                                entries.forEach((entry) => {
+                                    if (entry.isIntersecting) {
+                                        this.loadMore();
+                                    }
+                                });
+                            },
+                            {
+                                root: null,
+                                rootMargin: "0px 0px 200px 0px",
+                                threshold: 0.1,
+                            },
+                        );
 
-<a href="http://github.com/jefferickson">Github</a><br />
-<a href="http://linkedin.com/in/jpericks">LinkedIn</a><br />
-<a href="http://instagram.com/jperickson">Instagram</a><br />
-<br />
+                        this.$nextTick(() => {
+                            if (this.$refs.infiniteScrollTrigger) {
+                                observer.observe(
+                                    this.$refs.infiniteScrollTrigger,
+                                );
+                            }
+                        });
+                    },
+                    updateJumpTopFromScroll() {
+                        this.showJumpTop = window.scrollY > 0;
+                    },
+                    updateViewerMaxHeight() {
+                        this.$nextTick(() => {
+                            if (!this.selectedImage) {
+                                this.viewerMaxHeight = null;
+                                return;
+                            }
 
-</body>
+                            const media = this.$refs.viewerMedia;
+                            const footer = document.querySelector("footer");
+                            if (!media || !footer) {
+                                this.viewerMaxHeight = null;
+                                return;
+                            }
 
+                            const mediaRect = media.getBoundingClientRect();
+                            const footerRect = footer.getBoundingClientRect();
+                            const gap = 48; // desired space (px) between image area and footer
+                            const available =
+                                footerRect.top - mediaRect.top - gap;
+
+                            this.viewerMaxHeight =
+                                available > 0 ? available : 0;
+                        });
+                    },
+                    selectMedia(src) {
+                        // Remember where the user was in the gallery
+                        this.lastScrollY = window.scrollY || 0;
+
+                        this.selectedImage = src;
+                        const encoded = encodeURIComponent(src);
+                        const targetHash = `#photo=${encoded}`;
+                        if (window.location.hash !== targetHash) {
+                            window.location.hash = targetHash;
+                        }
+
+                        // Make sure the viewer is fully visible and sized correctly
+                        setTimeout(() => {
+                            window.scrollTo(0, 0);
+                            this.updateViewerMaxHeight();
+                        }, 50);
+                    },
+                    clearSelection() {
+                        const previousImage = this.selectedImage;
+                        this.selectedImage = null;
+                        const hash = window.location.hash;
+                        if (hash.startsWith("#photo=")) {
+                            window.location.hash = "#photos";
+                        }
+
+                        // Restore the gallery scroll position. If we have a stored
+                        // scroll offset from when the user clicked into the viewer,
+                        // use that. Otherwise (e.g., hard-loaded deep link), scroll
+                        // the gallery so that the previously selected image is at
+                        // the top of the viewport.
+                        this.$nextTick(() => {
+                            if (
+                                typeof this.lastScrollY === "number" &&
+                                this.lastScrollY > 0
+                            ) {
+                                window.scrollTo({
+                                    top: this.lastScrollY,
+                                    behavior: "smooth",
+                                });
+                            } else if (previousImage) {
+                                const selector =
+                                    '[data-gallery-item][data-image="' +
+                                    previousImage.replace(/"/g, '\\"') +
+                                    '"]';
+                                const root = this.$refs.galleryGrid || this.$el;
+                                const galleryItem =
+                                    root.querySelector(selector);
+                                if (galleryItem) {
+                                    const header =
+                                        document.querySelector("#site-header");
+                                    const headerHeight = header
+                                        ? header.getBoundingClientRect().height
+                                        : 0;
+
+                                    const rect =
+                                        galleryItem.getBoundingClientRect();
+                                    const targetY =
+                                        window.scrollY +
+                                        rect.top -
+                                        headerHeight;
+
+                                    window.scrollTo({
+                                        top: targetY,
+                                        behavior: "smooth",
+                                    });
+                                }
+                            }
+                        });
+                    },
+                    updateFromHash() {
+                        const hash = window.location.hash || "";
+                        if (hash.startsWith("#photo=")) {
+                            const encoded = hash.slice("#photo=".length);
+                            const target = decodeURIComponent(encoded);
+                            const index = this.allImages.indexOf(target);
+                            if (index !== -1) {
+                                const neededCount = Math.max(
+                                    this.batchSize,
+                                    index + 1,
+                                );
+                                this.visibleImages = this.allImages.slice(
+                                    0,
+                                    neededCount,
+                                );
+                                this.selectedImage = target;
+                                this.updateViewerMaxHeight();
+                            }
+                        } else {
+                            this.selectedImage = null;
+                        }
+                    },
+                }));
+            });
+        </script>
+    </head>
+    <body
+        class="min-h-screen flex flex-col items-center pt-10"
+        x-data="{
+            showPhotos: false,
+            init() {
+                const hash = window.location.hash || '';
+                if (hash === '#photos' || hash.startsWith('#photo=')) {
+                    this.showPhotos = true;
+                }
+
+                window.addEventListener('hashchange', () => {
+                    const newHash = window.location.hash || '';
+                    this.showPhotos = newHash === '#photos' || newHash.startsWith('#photo=');
+                });
+            },
+            goHome() {
+                const wasShowingAbout = !this.showPhotos;
+                this.showPhotos = false;
+                if (window.history && window.history.replaceState) {
+                    const oldURL = window.location.href;
+                    window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+                    // Manually dispatch hashchange event to clear photo selection
+                    window.dispatchEvent(new HashChangeEvent('hashchange', {
+                        oldURL: oldURL,
+                        newURL: window.location.href
+                    }));
+                } else {
+                    window.location.hash = '';
+                }
+                if (wasShowingAbout) {
+                    // Use smooth scroll if already on about page
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 50);
+                } else {
+                    // Instant scroll when switching from another page
+                    window.scrollTo(0, 0);
+                }
+            },
+            goPhotos() {
+                const wasShowingPhotos = this.showPhotos;
+                const currentHash = window.location.hash || '';
+                const wasPhotoDetail = currentHash.startsWith('#photo=');
+
+                // Scroll immediately before DOM changes if needed
+                if (wasShowingPhotos && !wasPhotoDetail) {
+                    // Smooth scroll if already on photos gallery
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else if (!wasShowingPhotos) {
+                    // Instant scroll when switching from About
+                    window.scrollTo(0, 0);
+                }
+                // Note: Don't scroll yet if coming from photo detail - will scroll after transition
+
+                this.showPhotos = true;
+
+                // Use replaceState for normal navigation, but location.hash when coming from photo detail
+                // to ensure proper hashchange event fires
+                if (wasPhotoDetail) {
+                    window.location.hash = 'photos';
+                } else if (window.history && window.history.replaceState) {
+                    window.history.replaceState(
+                        null,
+                        document.title,
+                        window.location.pathname + window.location.search + '#photos',
+                    );
+                } else {
+                    window.location.hash = 'photos';
+                }
+
+                // Smooth scroll after transition when coming from photo detail
+                if (wasPhotoDetail) {
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 200);
+                }
+            }
+        }"
+    >
+        <header id="site-header" class="sticky top-0 bg-white z-20 w-full">
+            <div class="w-11/12 md:w-2/3 mx-auto">
+                <div class="flex items-baseline justify-between pt-10 pb-2">
+                    <p
+                        class="text-2xl font-medium text-black cursor-pointer"
+                        @click="goHome()"
+                    >
+                        ⌘ Jeff Erickson
+                    </p>
+                    <div class="flex items-baseline gap-4">
+                        <button
+                            type="button"
+                            class="text-base font-medium text-gray-600 hover:text-black"
+                            @click="goHome()"
+                        >
+                            About
+                        </button>
+                        <button
+                            type="button"
+                            class="text-base font-medium text-gray-600 hover:text-black"
+                            @click="goPhotos()"
+                        >
+                            Photos
+                        </button>
+                    </div>
+                </div>
+                <hr class="mt-2 border-t border-gray-400 w-full" />
+            </div>
+        </header>
+
+        <div class="w-11/12 md:w-2/3 flex-1 content-body">
+            <!-- Home content -->
+            <div class="mt-6" x-show="!showPhotos">
+                <section class="mt-8">
+                    <h2
+                        class="text-xl font-semibold text-gray-900 mb-1 font-display"
+                    >
+                        About
+                    </h2>
+                    <div
+                        class="mt-2 flex flex-col md:flex-row md:items-start md:gap-8"
+                    >
+                        <div class="md:w-2/3">
+                            <p class="mt-1 mb-6 text-gray-700">
+                                I live in
+                                <a
+                                    href="https://www.openstreetmap.org/#map=11/60.3923/25.6613&layers=P"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >Porvoo</a
+                                >
+                                (Borgå), Finland with my girlfriend Ina and
+                                Masse the cat. I grew up in
+                                <a
+                                    href="https://www.openstreetmap.org/#map=11/46.8689/-113.9921&layers=P"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >Montana</a
+                                >
+                                and lived in New York City for many years before
+                                moving to Finland in 2021.<br />
+                                Big Sky to Big Apple to Big Sauna.
+                            </p>
+
+                            <p class="mt-1 mb-6 text-gray-700">
+                                These days I work as a Software Engineering
+                                Manager at
+                                <a
+                                    href="https://www.posti.com/en"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >Posti</a
+                                >, Finland's post office and logistics company.
+                                In the past, I've had roles ranging from backend
+                                software engineer to policy data analyst to
+                                public school teacher. My
+                                <a
+                                    href="assets/files/erickson_cv.pdf"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >CV</a
+                                >
+                                and
+                                <a
+                                    href="https://www.linkedin.com/in/jpericks/"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >LinkedIn</a
+                                >
+                                profile have more information.
+                            </p>
+
+                            <p class="mt-1 mb-6 text-gray-700">
+                                I've studied Statistics at
+                                <a
+                                    href="https://www.hunter.cuny.edu/"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >Hunter College</a
+                                >, Mathematics Education at
+                                <a
+                                    href="https://www.nyu.edu/"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >NYU</a
+                                >, and Mathematics at the
+                                <a
+                                    href="https://www.washington.edu/"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >University of Washington</a
+                                >.
+                            </p>
+
+                            <p class="mt-1 mb-6 text-gray-700">
+                                Lately, my hobbies include learning Swedish and
+                                Finnish,
+                                <a
+                                    href="https://www.letterboxd.com/jperickson/"
+                                    class="underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >watching movies</a
+                                >, traveling (especially in the Nordics), and
+                                finding good saunas or cold water swimming
+                                spots.
+                            </p>
+
+                            <p class="mt-1 mb-6 text-gray-700">
+                                Please take a look at my
+                                <a href="#photos" class="underline" @click.prevent="goPhotos()">photos</a>
+                                if you like.
+                            </p>
+
+                            <h2
+                                class="text-xl font-semibold text-gray-900 mb-1 font-display"
+                            >
+                                Contact
+                            </h2>
+                            <div class="mt-2">
+                                <ul class="mb-6 text-gray-700 space-y-1">
+                                    <li class="mt-1">
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex justify-end w-4 text-gray-700"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden="true"
+                                                    class="w-4 h-4"
+                                                >
+                                                    <path
+                                                        fill="currentColor"
+                                                        d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v.01L12 13l8-6.99V6H4Zm0 3.25V18h16V9.25l-7.4 5.16a2 2 0 0 1-2.2 0L4 9.25Z"
+                                                    />
+                                                </svg>
+                                            </div>
+                                            <span
+                                                class="flex flex-wrap items-center gap-1"
+                                            >
+                                                <a
+                                                    href="mailto:jeff@erick.so"
+                                                    class="underline"
+                                                >
+                                                    jeff@erick.so
+                                                </a>
+                                                <a
+                                                    href="assets/files/jeff_at_erick_so_public_key.asc"
+                                                    class="underline"
+                                                    target="_blaink"
+                                                    rel="noopener noreferrer"
+                                                    >[Public Key]</a
+                                                >
+                                            </span>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex justify-start md:justify-end w-4 text-gray-700"
+                                            >
+                                                <span
+                                                    class="flex items-center gap-1"
+                                                >
+                                                    <!-- Phone icon -->
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        aria-hidden="true"
+                                                        class="w-4 h-4"
+                                                    >
+                                                        <path
+                                                            fill="currentColor"
+                                                            d="M6.62 3.16a1 1 0 0 1 1.11-.27l3 1.2a1 1 0 0 1 .61.74l.5 2.7a1 1 0 0 1-.27.86l-1.72 1.72a11.05 11.05 0 0 0 4.95 4.95l1.72-1.72a1 1 0 0 1 .86-.27l2.7.5a1 1 0 0 1 .74.61l1.2 3a1 1 0 0 1-.27 1.11l-2.1 2.1a2.5 2.5 0 0 1-2.35.66c-3.02-.76-5.8-2.54-8.28-5.02-2.48-2.48-4.26-5.26-5.02-8.28a2.5 2.5 0 0 1 .66-2.35l2.1-2.1Z"
+                                                        />
+                                                    </svg>
+                                                    <span class="hidden md:inline">/</span>
+                                                    <!-- Text message icon -->
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        aria-hidden="true"
+                                                        class="hidden md:block w-4 h-4"
+                                                    >
+                                                        <path
+                                                            fill="currentColor"
+                                                            d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4v-4H5a2 2 0 0 1-2-2V5Zm4 4h10v2H7V9Zm0-4h10v2H7V5Z"
+                                                        />
+                                                    </svg>
+                                                </span>
+                                            </div>
+                                            <a
+                                                href="tel:+358453469200"
+                                                class="underline"
+                                            >
+                                                +358 45 346 9200
+                                            </a>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex justify-end w-4 text-gray-700"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden="true"
+                                                    class="w-4 h-4"
+                                                >
+                                                    <path
+                                                        fill="currentColor"
+                                                        d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.21 1.79 1.21 1.04 1.78 2.72 1.26 3.38.96.11-.76.41-1.26.74-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.29 1.2-3.1-.12-.29-.52-1.46.11-3.04 0 0 .98-.31 3.2 1.18a11.1 11.1 0 0 1 2.91-.39c.99 0 1.99.13 2.92.39 2.22-1.49 3.19-1.18 3.19-1.18.63 1.58.23 2.75.11 3.04.75.81 1.2 1.84 1.2 3.1 0 4.44-2.7 5.41-5.28 5.7.42.37.79 1.1.79 2.22 0 1.6-.02 2.89-.02 3.28 0 .31.21.68.8.56A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
+                                                    />
+                                                </svg>
+                                            </div>
+                                            <a
+                                                href="https://www.github.com/jefferickson"
+                                                class="underline"
+                                                target="_blaink"
+                                                rel="noopener noreferrer"
+                                            >
+                                                jefferickson
+                                            </a>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex justify-end w-4 text-gray-700"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden="true"
+                                                    class="w-4 h-4"
+                                                >
+                                                    <path
+                                                        fill="currentColor"
+                                                        d="M4.98 3.5C4.98 4.88 3.88 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1 4.98 2.12 4.98 3.5zM.25 8h4.5V23h-4.5V8zm7.75 0h4.31v2.05h.06c.6-1.14 2.06-2.34 4.24-2.34 4.53 0 5.37 2.98 5.37 6.86V23h-4.5v-7.36c0-1.76-.03-4.03-2.46-4.03-2.47 0-2.85 1.93-2.85 3.9V23H8V8z"
+                                                    />
+                                                </svg>
+                                            </div>
+                                            <span
+                                                class="flex flex-wrap items-center gap-1"
+                                            >
+                                                <a
+                                                    href="https://www.linkedin.com/in/jpericks"
+                                                    class="underline"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    jpericks
+                                                </a>
+                                                <span>/</span>
+                                                <a
+                                                    href="assets/files/erickson_cv.pdf"
+                                                    class="flex items-center gap-1 underline"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        aria-hidden="true"
+                                                        class="w-4 h-4 text-gray-700"
+                                                    >
+                                                        <path
+                                                            fill="currentColor"
+                                                            d="M6 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.41l-4.83-4.83A2 2 0 0 0 13.17 3H6Zm7 2.41L18.59 11H15a2 2 0 0 1-2-2V5.41ZM8 13h8v2H8v-2Zm0 4h5v2H8v-2Z"
+                                                        />
+                                                    </svg>
+                                                    <span>CV</span>
+                                                </a>
+                                            </span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-4 md:mt-0 md:w-1/3">
+                            <img
+                                src="assets/media/images/jeff_erickson_about.jpg"
+                                alt="Photo of Jeff Erickson"
+                                class="w-full h-auto rounded-lg shadow"
+                            />
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Photos content -->
+            <div class="mt-6" x-show="showPhotos">
+                <div x-data="mediaGallery" x-init="init()">
+                    <div class="max-w-6xl mx-auto" :class="selectedImage ? 'px-0' : 'px-4'">
+                        <main>
+                            <!-- Gallery -->
+                            <section x-show="!selectedImage">
+                                <div
+                                    class="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3"
+                                    x-ref="galleryGrid"
+                                >
+                                    <template
+                                        x-for="src in visibleImages"
+                                        :key="src"
+                                    >
+                                        <figure
+                                            class="group relative overflow-hidden rounded-xl bg-slate-800/80 border border-slate-700/70 shadow-lg cursor-pointer"
+                                            @click="selectMedia(src)"
+                                            data-gallery-item
+                                            :data-image="src"
+                                        >
+                                            <div
+                                                class="aspect-square relative overflow-hidden"
+                                            >
+                                                <!-- Images -->
+                                                <template
+                                                    x-if="['jpg','jpeg','png','gif','webp','avif'].includes(src.split('.').pop().toLowerCase())"
+                                                >
+                                                    <img
+                                                        class="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200 ease-out"
+                                                        :src="'assets/media/photo_gallery/' + src"
+                                                        :alt="src"
+                                                        loading="lazy"
+                                                    />
+                                                </template>
+
+                                                <!-- Videos (play on hover) -->
+                                                <template
+                                                    x-if="['mp4','mov','webm'].includes(src.split('.').pop().toLowerCase())"
+                                                >
+                                                    <video
+                                                        class="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200 ease-out"
+                                                        :src="'assets/media/photo_gallery/' + src"
+                                                        preload="auto"
+                                                        autoplay
+                                                        muted
+                                                        loop
+                                                        playsinline
+                                                        x-init="
+                                                            if (window.innerWidth >= 768) {
+                                                                $el.pause();
+                                                                $el.removeAttribute('autoplay');
+                                                            }
+                                                        "
+                                                        @mouseenter="
+                                                            const video = $event.target;
+                                                            const playVideo = () => video.play().catch(() => {});
+                                                            if (video.readyState >= 2) {
+                                                                playVideo();
+                                                            } else {
+                                                                video.addEventListener('loadeddata', playVideo, { once: true });
+                                                            }
+                                                        "
+                                                        @mouseleave="$event.target.pause(); $event.target.currentTime = 0"
+                                                    ></video>
+                                                </template>
+
+                                                <!-- Other file types -->
+                                                <template
+                                                    x-if="!['jpg','jpeg','png','gif','webp','avif'].includes(src.split('.').pop().toLowerCase()) && !['mp4','mov','webm'].includes(src.split('.').pop().toLowerCase())"
+                                                >
+                                                    <div
+                                                        class="w-full h-full flex items-center justify-center bg-slate-800 text-xs text-slate-300"
+                                                    >
+                                                        <span
+                                                            x-text="src.split('.').pop().toUpperCase()"
+                                                        ></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </figure>
+                                    </template>
+                                </div>
+                            </section>
+
+                            <!-- Selected media viewer -->
+                            <section x-show="selectedImage" x-transition>
+                                <div class="w-full">
+                                    <div
+                                        class="mb-4 flex items-center justify-between w-full"
+                                    >
+                                        <button
+                                            type="button"
+                                            class="text-sm text-gray-400 hover:text-gray-200"
+                                            @click="clearSelection()"
+                                        >
+                                            ← Back to gallery
+                                        </button>
+                                    </div>
+                                    <div
+                                        class="bg-transparent md:bg-slate-900 rounded-none md:rounded-xl border-0 md:border md:border-slate-700 shadow-none md:shadow-lg p-0 md:p-4 w-full"
+                                        x-ref="viewerContainer"
+                                    >
+                                        <div
+                                            class="flex justify-center"
+                                            x-ref="viewerMedia"
+                                        >
+                                            <template
+                                                x-if="['jpg','jpeg','png','gif','webp','avif'].includes(selectedImage.split('.').pop().toLowerCase())"
+                                            >
+                                                <img
+                                                    class="max-h-[60vh] max-w-full w-auto h-auto rounded-lg shadow-lg"
+                                                    :src="'assets/media/photo_gallery/' + selectedImage"
+                                                    :alt="selectedImage"
+                                                    loading="lazy"
+                                                    :style="viewerMaxHeight ? 'max-height:' + viewerMaxHeight + 'px' : ''"
+                                                />
+                                            </template>
+                                            <template
+                                                x-if="['mp4','mov','webm'].includes(selectedImage.split('.').pop().toLowerCase())"
+                                            >
+                                                <video
+                                                    class="max-h-[60vh] max-w-full w-auto h-auto rounded-lg shadow-lg"
+                                                    :src="'assets/media/photo_gallery/' + selectedImage"
+                                                    controls
+                                                    playsinline
+                                                    :style="viewerMaxHeight ? 'max-height:' + viewerMaxHeight + 'px' : ''"
+                                                ></video>
+                                            </template>
+                                            <template
+                                                x-if="!['jpg','jpeg','png','gif','webp','avif'].includes(selectedImage.split('.').pop().toLowerCase()) && !['mp4','mov','webm'].includes(selectedImage.split('.').pop().toLowerCase())"
+                                            >
+                                                <div
+                                                    class="w-full h-full flex items-center justify-center bg-slate-800 text-xs text-slate-300"
+                                                >
+                                                    <span
+                                                        x-text="selectedImage"
+                                                    ></span>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- Hidden media list (auto-generated, sorted) -->
+                            <div class="hidden" x-ref="source">
+                                <div data-image="000611.jpg"></div>
+                                <div data-image="000610.jpg"></div>
+                                <div data-image="000609.jpg"></div>
+                                <div data-image="000608.jpg"></div>
+                                <div data-image="000607.jpg"></div>
+                                <div data-image="000606.jpg"></div>
+                                <div data-image="000605.mp4"></div>
+                                <div data-image="000604.jpg"></div>
+                                <div data-image="000603.jpg"></div>
+                                <div data-image="000602.jpg"></div>
+                                <div data-image="000601.jpg"></div>
+                                <div data-image="000600.jpg"></div>
+                                <div data-image="000599.jpg"></div>
+                                <div data-image="000598.jpg"></div>
+                                <div data-image="000597.jpg"></div>
+                                <div data-image="000596.jpg"></div>
+                                <div data-image="000595.jpg"></div>
+                                <div data-image="000594.jpg"></div>
+                                <div data-image="000593.jpg"></div>
+                                <div data-image="000592.jpg"></div>
+                                <div data-image="000591.jpg"></div>
+                                <div data-image="000590.jpg"></div>
+                                <div data-image="000589.jpg"></div>
+                                <div data-image="000588.jpg"></div>
+                                <div data-image="000587.jpg"></div>
+                                <div data-image="000586.jpg"></div>
+                                <div data-image="000585.jpg"></div>
+                                <div data-image="000584.jpg"></div>
+                                <div data-image="000583.jpg"></div>
+                                <div data-image="000582.jpg"></div>
+                                <div data-image="000581.jpg"></div>
+                                <div data-image="000580.jpg"></div>
+                                <div data-image="000579.jpg"></div>
+                                <div data-image="000578.jpg"></div>
+                                <div data-image="000577.jpg"></div>
+                                <div data-image="000576.jpg"></div>
+                                <div data-image="000575.jpg"></div>
+                                <div data-image="000574.jpg"></div>
+                                <div data-image="000573.jpg"></div>
+                                <div data-image="000572.jpg"></div>
+                                <div data-image="000571.jpg"></div>
+                                <div data-image="000570.jpg"></div>
+                                <div data-image="000569.jpg"></div>
+                                <div data-image="000568.jpg"></div>
+                                <div data-image="000567.jpg"></div>
+                                <div data-image="000566.jpg"></div>
+                                <div data-image="000565.jpg"></div>
+                                <div data-image="000564.jpg"></div>
+                                <div data-image="000563.jpg"></div>
+                                <div data-image="000562.jpg"></div>
+                                <div data-image="000561.jpg"></div>
+                                <div data-image="000560.jpg"></div>
+                                <div data-image="000559.jpg"></div>
+                                <div data-image="000558.mp4"></div>
+                                <div data-image="000557.jpg"></div>
+                                <div data-image="000556.jpg"></div>
+                                <div data-image="000555.jpg"></div>
+                                <div data-image="000554.jpg"></div>
+                                <div data-image="000553.mp4"></div>
+                                <div data-image="000552.jpg"></div>
+                                <div data-image="000551.jpg"></div>
+                                <div data-image="000550.jpg"></div>
+                                <div data-image="000549.jpg"></div>
+                                <div data-image="000548.jpg"></div>
+                                <div data-image="000547.jpg"></div>
+                                <div data-image="000546.jpg"></div>
+                                <div data-image="000545.jpg"></div>
+                                <div data-image="000544.jpg"></div>
+                                <div data-image="000543.jpg"></div>
+                                <div data-image="000542.jpg"></div>
+                                <div data-image="000541.jpg"></div>
+                                <div data-image="000540.jpg"></div>
+                                <div data-image="000539.jpg"></div>
+                                <div data-image="000538.jpg"></div>
+                                <div data-image="000537.jpg"></div>
+                                <div data-image="000536.jpg"></div>
+                                <div data-image="000535.jpg"></div>
+                                <div data-image="000534.jpg"></div>
+                                <div data-image="000533.jpg"></div>
+                                <div data-image="000532.jpg"></div>
+                                <div data-image="000531.jpg"></div>
+                                <div data-image="000530.jpg"></div>
+                                <div data-image="000529.jpg"></div>
+                                <div data-image="000528.jpg"></div>
+                                <div data-image="000527.jpg"></div>
+                                <div data-image="000526.jpg"></div>
+                                <div data-image="000525.jpg"></div>
+                                <div data-image="000524.mp4"></div>
+                                <div data-image="000523.jpg"></div>
+                                <div data-image="000522.jpg"></div>
+                                <div data-image="000521.jpg"></div>
+                                <div data-image="000520.jpg"></div>
+                                <div data-image="000519.jpg"></div>
+                                <div data-image="000518.jpg"></div>
+                                <div data-image="000517.jpg"></div>
+                                <div data-image="000516.jpg"></div>
+                                <div data-image="000515.jpg"></div>
+                                <div data-image="000514.jpg"></div>
+                                <div data-image="000513.jpg"></div>
+                                <div data-image="000512.jpg"></div>
+                                <div data-image="000511.jpg"></div>
+                                <div data-image="000510.jpg"></div>
+                                <div data-image="000509.jpg"></div>
+                                <div data-image="000508.jpg"></div>
+                                <div data-image="000507.jpg"></div>
+                                <div data-image="000506.jpg"></div>
+                                <div data-image="000505.jpg"></div>
+                                <div data-image="000504.jpg"></div>
+                                <div data-image="000503.jpg"></div>
+                                <div data-image="000502.jpg"></div>
+                                <div data-image="000501.jpg"></div>
+                                <div data-image="000500.jpg"></div>
+                                <div data-image="000499.jpg"></div>
+                                <div data-image="000498.jpg"></div>
+                                <div data-image="000497.jpg"></div>
+                                <div data-image="000496.jpg"></div>
+                                <div data-image="000495.jpg"></div>
+                                <div data-image="000494.jpg"></div>
+                                <div data-image="000493.jpg"></div>
+                                <div data-image="000492.jpg"></div>
+                                <div data-image="000491.jpg"></div>
+                                <div data-image="000490.jpg"></div>
+                                <div data-image="000489.jpg"></div>
+                                <div data-image="000488.jpg"></div>
+                                <div data-image="000487.jpg"></div>
+                                <div data-image="000486.jpg"></div>
+                                <div data-image="000485.jpg"></div>
+                                <div data-image="000484.jpg"></div>
+                                <div data-image="000483.jpg"></div>
+                                <div data-image="000482.jpg"></div>
+                                <div data-image="000481.jpg"></div>
+                                <div data-image="000480.jpg"></div>
+                                <div data-image="000479.jpg"></div>
+                                <div data-image="000478.jpg"></div>
+                                <div data-image="000477.jpg"></div>
+                                <div data-image="000476.jpg"></div>
+                                <div data-image="000475.jpg"></div>
+                                <div data-image="000474.jpg"></div>
+                                <div data-image="000473.jpg"></div>
+                                <div data-image="000472.jpg"></div>
+                                <div data-image="000471.jpg"></div>
+                                <div data-image="000470.jpg"></div>
+                                <div data-image="000469.jpg"></div>
+                                <div data-image="000468.jpg"></div>
+                                <div data-image="000467.jpg"></div>
+                                <div data-image="000466.jpg"></div>
+                                <div data-image="000465.jpg"></div>
+                                <div data-image="000464.jpg"></div>
+                                <div data-image="000463.jpg"></div>
+                                <div data-image="000462.jpg"></div>
+                                <div data-image="000461.jpg"></div>
+                                <div data-image="000460.jpg"></div>
+                                <div data-image="000459.jpg"></div>
+                                <div data-image="000458.jpg"></div>
+                                <div data-image="000457.jpg"></div>
+                                <div data-image="000456.jpg"></div>
+                                <div data-image="000455.jpg"></div>
+                                <div data-image="000454.jpg"></div>
+                                <div data-image="000453.jpg"></div>
+                                <div data-image="000452.jpg"></div>
+                                <div data-image="000451.jpg"></div>
+                                <div data-image="000450.jpg"></div>
+                                <div data-image="000449.jpg"></div>
+                                <div data-image="000448.jpg"></div>
+                                <div data-image="000447.jpg"></div>
+                                <div data-image="000446.jpg"></div>
+                                <div data-image="000445.jpg"></div>
+                                <div data-image="000444.jpg"></div>
+                                <div data-image="000443.jpg"></div>
+                                <div data-image="000442.jpg"></div>
+                                <div data-image="000441.jpg"></div>
+                                <div data-image="000440.jpg"></div>
+                                <div data-image="000439.jpg"></div>
+                                <div data-image="000438.jpg"></div>
+                                <div data-image="000437.jpg"></div>
+                                <div data-image="000436.mp4"></div>
+                                <div data-image="000435.jpg"></div>
+                                <div data-image="000434.jpg"></div>
+                                <div data-image="000433.jpg"></div>
+                                <div data-image="000432.jpg"></div>
+                                <div data-image="000431.jpg"></div>
+                                <div data-image="000430.jpg"></div>
+                                <div data-image="000429.jpg"></div>
+                                <div data-image="000428.jpg"></div>
+                                <div data-image="000427.jpg"></div>
+                                <div data-image="000426.jpg"></div>
+                                <div data-image="000425.jpg"></div>
+                                <div data-image="000424.jpg"></div>
+                                <div data-image="000423.jpg"></div>
+                                <div data-image="000422.jpg"></div>
+                                <div data-image="000421.jpg"></div>
+                                <div data-image="000420.jpg"></div>
+                                <div data-image="000419.jpg"></div>
+                                <div data-image="000418.jpg"></div>
+                                <div data-image="000417.jpg"></div>
+                                <div data-image="000416.jpg"></div>
+                                <div data-image="000415.jpg"></div>
+                                <div data-image="000414.jpg"></div>
+                                <div data-image="000413.jpg"></div>
+                                <div data-image="000412.jpg"></div>
+                                <div data-image="000411.jpg"></div>
+                                <div data-image="000410.jpg"></div>
+                                <div data-image="000409.jpg"></div>
+                                <div data-image="000408.jpg"></div>
+                                <div data-image="000407.jpg"></div>
+                                <div data-image="000406.jpg"></div>
+                                <div data-image="000405.jpg"></div>
+                                <div data-image="000404.jpg"></div>
+                                <div data-image="000403.jpg"></div>
+                                <div data-image="000402.jpg"></div>
+                                <div data-image="000401.jpg"></div>
+                                <div data-image="000400.mp4"></div>
+                                <div data-image="000399.jpg"></div>
+                                <div data-image="000398.jpg"></div>
+                                <div data-image="000397.jpg"></div>
+                                <div data-image="000396.jpg"></div>
+                                <div data-image="000395.jpg"></div>
+                                <div data-image="000394.jpg"></div>
+                                <div data-image="000393.jpg"></div>
+                                <div data-image="000392.jpg"></div>
+                                <div data-image="000391.jpg"></div>
+                                <div data-image="000390.jpg"></div>
+                                <div data-image="000389.jpg"></div>
+                                <div data-image="000388.jpg"></div>
+                                <div data-image="000387.jpg"></div>
+                                <div data-image="000386.jpg"></div>
+                                <div data-image="000385.jpg"></div>
+                                <div data-image="000384.jpg"></div>
+                                <div data-image="000383.jpg"></div>
+                                <div data-image="000382.jpg"></div>
+                                <div data-image="000381.jpg"></div>
+                                <div data-image="000380.jpg"></div>
+                                <div data-image="000379.mp4"></div>
+                                <div data-image="000378.jpg"></div>
+                                <div data-image="000377.jpg"></div>
+                                <div data-image="000376.jpg"></div>
+                                <div data-image="000375.jpg"></div>
+                                <div data-image="000374.jpg"></div>
+                                <div data-image="000373.jpg"></div>
+                                <div data-image="000372.jpg"></div>
+                                <div data-image="000371.jpg"></div>
+                                <div data-image="000370.jpg"></div>
+                                <div data-image="000369.jpg"></div>
+                                <div data-image="000368.jpg"></div>
+                                <div data-image="000367.jpg"></div>
+                                <div data-image="000366.jpg"></div>
+                                <div data-image="000365.mp4"></div>
+                                <div data-image="000364.jpg"></div>
+                                <div data-image="000363.jpg"></div>
+                                <div data-image="000362.jpg"></div>
+                                <div data-image="000361.jpg"></div>
+                                <div data-image="000360.jpg"></div>
+                                <div data-image="000359.jpg"></div>
+                                <div data-image="000358.jpg"></div>
+                                <div data-image="000357.jpg"></div>
+                                <div data-image="000356.jpg"></div>
+                                <div data-image="000355.jpg"></div>
+                                <div data-image="000354.jpg"></div>
+                                <div data-image="000353.jpg"></div>
+                                <div data-image="000352.jpg"></div>
+                                <div data-image="000351.jpg"></div>
+                                <div data-image="000350.jpg"></div>
+                                <div data-image="000349.jpg"></div>
+                                <div data-image="000348.jpg"></div>
+                                <div data-image="000347.mp4"></div>
+                                <div data-image="000346.jpg"></div>
+                                <div data-image="000345.mp4"></div>
+                                <div data-image="000344.jpg"></div>
+                                <div data-image="000343.jpg"></div>
+                                <div data-image="000342.jpg"></div>
+                                <div data-image="000341.jpg"></div>
+                                <div data-image="000340.jpg"></div>
+                                <div data-image="000339.jpg"></div>
+                                <div data-image="000338.jpg"></div>
+                                <div data-image="000337.jpg"></div>
+                                <div data-image="000336.jpg"></div>
+                                <div data-image="000335.jpg"></div>
+                                <div data-image="000334.jpg"></div>
+                                <div data-image="000333.jpg"></div>
+                                <div data-image="000332.jpg"></div>
+                                <div data-image="000331.jpg"></div>
+                                <div data-image="000330.jpg"></div>
+                                <div data-image="000329.jpg"></div>
+                                <div data-image="000328.jpg"></div>
+                                <div data-image="000327.jpg"></div>
+                                <div data-image="000326.jpg"></div>
+                                <div data-image="000325.jpg"></div>
+                                <div data-image="000324.jpg"></div>
+                                <div data-image="000323.jpg"></div>
+                                <div data-image="000322.jpg"></div>
+                                <div data-image="000321.jpg"></div>
+                                <div data-image="000320.jpg"></div>
+                                <div data-image="000319.jpg"></div>
+                                <div data-image="000318.jpg"></div>
+                                <div data-image="000317.jpg"></div>
+                                <div data-image="000316.jpg"></div>
+                                <div data-image="000315.jpg"></div>
+                                <div data-image="000314.jpg"></div>
+                                <div data-image="000313.jpg"></div>
+                                <div data-image="000312.jpg"></div>
+                                <div data-image="000311.jpg"></div>
+                                <div data-image="000310.jpg"></div>
+                                <div data-image="000309.jpg"></div>
+                                <div data-image="000308.jpg"></div>
+                                <div data-image="000307.jpg"></div>
+                                <div data-image="000306.jpg"></div>
+                                <div data-image="000305.jpg"></div>
+                                <div data-image="000304.jpg"></div>
+                                <div data-image="000303.jpg"></div>
+                                <div data-image="000302.jpg"></div>
+                                <div data-image="000301.jpg"></div>
+                                <div data-image="000300.jpg"></div>
+                                <div data-image="000299.jpg"></div>
+                                <div data-image="000298.jpg"></div>
+                                <div data-image="000297.jpg"></div>
+                                <div data-image="000296.jpg"></div>
+                                <div data-image="000295.jpg"></div>
+                                <div data-image="000294.jpg"></div>
+                                <div data-image="000293.jpg"></div>
+                                <div data-image="000292.jpg"></div>
+                                <div data-image="000291.jpg"></div>
+                                <div data-image="000290.jpg"></div>
+                                <div data-image="000289.jpg"></div>
+                                <div data-image="000288.jpg"></div>
+                                <div data-image="000287.jpg"></div>
+                                <div data-image="000286.jpg"></div>
+                                <div data-image="000285.jpg"></div>
+                                <div data-image="000284.jpg"></div>
+                                <div data-image="000283.jpg"></div>
+                                <div data-image="000282.jpg"></div>
+                                <div data-image="000281.jpg"></div>
+                                <div data-image="000280.jpg"></div>
+                                <div data-image="000279.jpg"></div>
+                                <div data-image="000278.jpg"></div>
+                                <div data-image="000277.jpg"></div>
+                                <div data-image="000276.jpg"></div>
+                                <div data-image="000275.jpg"></div>
+                                <div data-image="000274.jpg"></div>
+                                <div data-image="000273.jpg"></div>
+                                <div data-image="000272.jpg"></div>
+                                <div data-image="000271.jpg"></div>
+                                <div data-image="000270.jpg"></div>
+                                <div data-image="000269.jpg"></div>
+                                <div data-image="000268.jpg"></div>
+                                <div data-image="000267.jpg"></div>
+                                <div data-image="000266.jpg"></div>
+                                <div data-image="000265.jpg"></div>
+                                <div data-image="000264.jpg"></div>
+                                <div data-image="000263.jpg"></div>
+                                <div data-image="000262.jpg"></div>
+                                <div data-image="000261.jpg"></div>
+                                <div data-image="000260.jpg"></div>
+                                <div data-image="000259.jpg"></div>
+                                <div data-image="000258.jpg"></div>
+                                <div data-image="000257.jpg"></div>
+                                <div data-image="000256.jpg"></div>
+                                <div data-image="000255.jpg"></div>
+                                <div data-image="000254.jpg"></div>
+                                <div data-image="000253.jpg"></div>
+                                <div data-image="000252.jpg"></div>
+                                <div data-image="000251.jpg"></div>
+                                <div data-image="000250.jpg"></div>
+                                <div data-image="000249.jpg"></div>
+                                <div data-image="000248.jpg"></div>
+                                <div data-image="000247.jpg"></div>
+                                <div data-image="000246.jpg"></div>
+                                <div data-image="000245.jpg"></div>
+                                <div data-image="000244.jpg"></div>
+                                <div data-image="000243.jpg"></div>
+                                <div data-image="000242.jpg"></div>
+                                <div data-image="000241.jpg"></div>
+                                <div data-image="000240.jpg"></div>
+                                <div data-image="000239.jpg"></div>
+                                <div data-image="000238.jpg"></div>
+                                <div data-image="000237.jpg"></div>
+                                <div data-image="000236.jpg"></div>
+                                <div data-image="000235.jpg"></div>
+                                <div data-image="000234.jpg"></div>
+                                <div data-image="000233.jpg"></div>
+                                <div data-image="000232.jpg"></div>
+                                <div data-image="000231.jpg"></div>
+                                <div data-image="000230.jpg"></div>
+                                <div data-image="000229.jpg"></div>
+                                <div data-image="000228.jpg"></div>
+                                <div data-image="000227.jpg"></div>
+                                <div data-image="000226.jpg"></div>
+                                <div data-image="000225.jpg"></div>
+                                <div data-image="000224.jpg"></div>
+                                <div data-image="000223.jpg"></div>
+                                <div data-image="000222.jpg"></div>
+                                <div data-image="000221.jpg"></div>
+                                <div data-image="000220.jpg"></div>
+                                <div data-image="000219.jpg"></div>
+                                <div data-image="000218.jpg"></div>
+                                <div data-image="000217.jpg"></div>
+                                <div data-image="000216.jpg"></div>
+                                <div data-image="000215.jpg"></div>
+                                <div data-image="000214.jpg"></div>
+                                <div data-image="000213.jpg"></div>
+                                <div data-image="000212.jpg"></div>
+                                <div data-image="000211.jpg"></div>
+                                <div data-image="000210.jpg"></div>
+                                <div data-image="000209.jpg"></div>
+                                <div data-image="000208.jpg"></div>
+                                <div data-image="000207.jpg"></div>
+                                <div data-image="000206.jpg"></div>
+                                <div data-image="000205.jpg"></div>
+                                <div data-image="000204.jpg"></div>
+                                <div data-image="000203.jpg"></div>
+                                <div data-image="000202.jpg"></div>
+                                <div data-image="000201.jpg"></div>
+                                <div data-image="000200.jpg"></div>
+                                <div data-image="000199.jpg"></div>
+                                <div data-image="000198.jpg"></div>
+                                <div data-image="000197.mp4"></div>
+                                <div data-image="000196.jpg"></div>
+                                <div data-image="000195.jpg"></div>
+                                <div data-image="000194.jpg"></div>
+                                <div data-image="000193.jpg"></div>
+                                <div data-image="000192.jpg"></div>
+                                <div data-image="000191.jpg"></div>
+                                <div data-image="000190.jpg"></div>
+                                <div data-image="000189.jpg"></div>
+                                <div data-image="000188.jpg"></div>
+                                <div data-image="000187.jpg"></div>
+                                <div data-image="000186.jpg"></div>
+                                <div data-image="000185.jpg"></div>
+                                <div data-image="000184.jpg"></div>
+                                <div data-image="000183.jpg"></div>
+                                <div data-image="000182.jpg"></div>
+                                <div data-image="000181.jpg"></div>
+                                <div data-image="000180.jpg"></div>
+                                <div data-image="000179.jpg"></div>
+                                <div data-image="000178.jpg"></div>
+                                <div data-image="000177.jpg"></div>
+                                <div data-image="000176.jpg"></div>
+                                <div data-image="000175.jpg"></div>
+                                <div data-image="000174.jpg"></div>
+                                <div data-image="000173.jpg"></div>
+                                <div data-image="000172.jpg"></div>
+                                <div data-image="000171.jpg"></div>
+                                <div data-image="000170.jpg"></div>
+                                <div data-image="000169.jpg"></div>
+                                <div data-image="000168.jpg"></div>
+                                <div data-image="000167.jpg"></div>
+                                <div data-image="000166.jpg"></div>
+                                <div data-image="000165.jpg"></div>
+                                <div data-image="000164.jpg"></div>
+                                <div data-image="000163.jpg"></div>
+                                <div data-image="000162.jpg"></div>
+                                <div data-image="000161.jpg"></div>
+                                <div data-image="000160.jpg"></div>
+                                <div data-image="000159.jpg"></div>
+                                <div data-image="000158.jpg"></div>
+                                <div data-image="000157.jpg"></div>
+                                <div data-image="000156.jpg"></div>
+                                <div data-image="000155.jpg"></div>
+                                <div data-image="000154.jpg"></div>
+                                <div data-image="000153.jpg"></div>
+                                <div data-image="000152.jpg"></div>
+                                <div data-image="000151.jpg"></div>
+                                <div data-image="000150.jpg"></div>
+                                <div data-image="000149.jpg"></div>
+                                <div data-image="000148.jpg"></div>
+                                <div data-image="000147.jpg"></div>
+                                <div data-image="000146.jpg"></div>
+                                <div data-image="000145.jpg"></div>
+                                <div data-image="000144.jpg"></div>
+                                <div data-image="000143.jpg"></div>
+                                <div data-image="000142.jpg"></div>
+                                <div data-image="000141.jpg"></div>
+                                <div data-image="000140.jpg"></div>
+                                <div data-image="000139.jpg"></div>
+                                <div data-image="000138.jpg"></div>
+                                <div data-image="000137.jpg"></div>
+                                <div data-image="000136.jpg"></div>
+                                <div data-image="000135.jpg"></div>
+                                <div data-image="000134.jpg"></div>
+                                <div data-image="000133.jpg"></div>
+                                <div data-image="000132.jpg"></div>
+                                <div data-image="000131.jpg"></div>
+                                <div data-image="000130.jpg"></div>
+                                <div data-image="000129.jpg"></div>
+                                <div data-image="000128.jpg"></div>
+                                <div data-image="000127.jpg"></div>
+                                <div data-image="000126.jpg"></div>
+                                <div data-image="000125.mp4"></div>
+                                <div data-image="000124.jpg"></div>
+                                <div data-image="000123.jpg"></div>
+                                <div data-image="000122.jpg"></div>
+                                <div data-image="000121.jpg"></div>
+                                <div data-image="000120.jpg"></div>
+                                <div data-image="000119.jpg"></div>
+                                <div data-image="000118.jpg"></div>
+                                <div data-image="000117.jpg"></div>
+                                <div data-image="000116.jpg"></div>
+                                <div data-image="000115.jpg"></div>
+                                <div data-image="000114.jpg"></div>
+                                <div data-image="000113.jpg"></div>
+                                <div data-image="000112.jpg"></div>
+                                <div data-image="000111.jpg"></div>
+                                <div data-image="000110.jpg"></div>
+                                <div data-image="000109.jpg"></div>
+                                <div data-image="000108.jpg"></div>
+                                <div data-image="000107.jpg"></div>
+                                <div data-image="000106.jpg"></div>
+                                <div data-image="000105.jpg"></div>
+                                <div data-image="000104.jpg"></div>
+                                <div data-image="000103.jpg"></div>
+                                <div data-image="000102.jpg"></div>
+                                <div data-image="000101.jpg"></div>
+                                <div data-image="000100.jpg"></div>
+                                <div data-image="000099.jpg"></div>
+                                <div data-image="000098.jpg"></div>
+                                <div data-image="000097.jpg"></div>
+                                <div data-image="000096.jpg"></div>
+                                <div data-image="000095.jpg"></div>
+                                <div data-image="000094.jpg"></div>
+                                <div data-image="000093.jpg"></div>
+                                <div data-image="000092.jpg"></div>
+                                <div data-image="000091.jpg"></div>
+                                <div data-image="000090.jpg"></div>
+                                <div data-image="000089.jpg"></div>
+                                <div data-image="000088.jpg"></div>
+                                <div data-image="000087.jpg"></div>
+                                <div data-image="000086.jpg"></div>
+                                <div data-image="000085.jpg"></div>
+                                <div data-image="000084.jpg"></div>
+                                <div data-image="000083.jpg"></div>
+                                <div data-image="000082.jpg"></div>
+                                <div data-image="000081.jpg"></div>
+                                <div data-image="000080.jpg"></div>
+                                <div data-image="000079.jpg"></div>
+                                <div data-image="000078.jpg"></div>
+                                <div data-image="000077.jpg"></div>
+                                <div data-image="000076.jpg"></div>
+                                <div data-image="000075.jpg"></div>
+                                <div data-image="000074.jpg"></div>
+                                <div data-image="000073.jpg"></div>
+                                <div data-image="000072.jpg"></div>
+                                <div data-image="000071.jpg"></div>
+                                <div data-image="000070.jpg"></div>
+                                <div data-image="000069.jpg"></div>
+                                <div data-image="000068.jpg"></div>
+                                <div data-image="000067.jpg"></div>
+                                <div data-image="000066.jpg"></div>
+                                <div data-image="000065.jpg"></div>
+                                <div data-image="000064.jpg"></div>
+                                <div data-image="000063.jpg"></div>
+                                <div data-image="000062.jpg"></div>
+                                <div data-image="000061.jpg"></div>
+                                <div data-image="000060.jpg"></div>
+                                <div data-image="000059.jpg"></div>
+                                <div data-image="000058.jpg"></div>
+                                <div data-image="000057.jpg"></div>
+                                <div data-image="000056.jpg"></div>
+                                <div data-image="000055.jpg"></div>
+                                <div data-image="000054.jpg"></div>
+                                <div data-image="000053.jpg"></div>
+                                <div data-image="000052.jpg"></div>
+                                <div data-image="000051.jpg"></div>
+                                <div data-image="000050.jpg"></div>
+                                <div data-image="000049.jpg"></div>
+                                <div data-image="000048.jpg"></div>
+                                <div data-image="000047.jpg"></div>
+                                <div data-image="000046.jpg"></div>
+                                <div data-image="000045.jpg"></div>
+                                <div data-image="000044.jpg"></div>
+                                <div data-image="000043.jpg"></div>
+                                <div data-image="000042.jpg"></div>
+                                <div data-image="000041.jpg"></div>
+                                <div data-image="000040.jpg"></div>
+                                <div data-image="000039.jpg"></div>
+                                <div data-image="000038.jpg"></div>
+                                <div data-image="000037.jpg"></div>
+                                <div data-image="000036.jpg"></div>
+                                <div data-image="000035.jpg"></div>
+                                <div data-image="000034.jpg"></div>
+                                <div data-image="000033.jpg"></div>
+                                <div data-image="000032.jpg"></div>
+                                <div data-image="000031.jpg"></div>
+                                <div data-image="000030.jpg"></div>
+                                <div data-image="000029.jpg"></div>
+                                <div data-image="000028.jpg"></div>
+                                <div data-image="000027.jpg"></div>
+                                <div data-image="000026.jpg"></div>
+                                <div data-image="000025.jpg"></div>
+                                <div data-image="000024.jpg"></div>
+                                <div data-image="000023.jpg"></div>
+                                <div data-image="000022.jpg"></div>
+                                <div data-image="000021.jpg"></div>
+                                <div data-image="000020.jpg"></div>
+                                <div data-image="000019.jpg"></div>
+                                <div data-image="000018.jpg"></div>
+                                <div data-image="000017.jpg"></div>
+                                <div data-image="000016.jpg"></div>
+                                <div data-image="000015.jpg"></div>
+                                <div data-image="000014.jpg"></div>
+                                <div data-image="000013.jpg"></div>
+                                <div data-image="000012.jpg"></div>
+                                <div data-image="000011.jpg"></div>
+                                <div data-image="000010.jpg"></div>
+                                <div data-image="000009.jpg"></div>
+                                <div data-image="000008.jpg"></div>
+                                <div data-image="000007.jpg"></div>
+                                <div data-image="000006.jpg"></div>
+                                <div data-image="000005.jpg"></div>
+                                <div data-image="000004.jpg"></div>
+                                <div data-image="000003.jpg"></div>
+                                <div data-image="000002.jpg"></div>
+                                <div data-image="000001.jpg"></div>
+                            </div>
+
+                            <!-- Sentinel used for infinite scroll / lazy loading -->
+                            <div
+                                x-ref="infiniteScrollTrigger"
+                                class="h-1"
+                            ></div>
+                        </main>
+                    </div>
+
+                    <button
+                        x-show="showJumpTop && !selectedImage"
+                        x-transition
+                        type="button"
+                        @click="showJumpTop = false; window.scrollTo({ top: 0, behavior: 'smooth' })"
+                        class="fixed bottom-6 right-6 z-20 px-4 py-2 rounded-full bg-slate-900/90 text-white text-xs md:text-sm shadow-lg border border-slate-700 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
+                    >
+                        ↑ Top
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="w-full bg-white mt-8">
+            <div class="w-11/12 md:w-2/3 mx-auto mb-6">
+                <hr class="mb-2 border-t border-gray-400 w-full" />
+                <div
+                    class="flex items-baseline justify-between text-sm text-gray-600"
+                >
+                    <p aria-hidden="true"></p>
+                    <p class="text-gray-500">
+                        © <span x-text="new Date().getFullYear()"></span> Jeff
+                        Erickson
+                    </p>
+                </div>
+            </div>
+        </footer>
+    </body>
 </html>
