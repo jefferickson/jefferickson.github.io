@@ -173,42 +173,46 @@
                         // the gallery so that the previously selected image is at
                         // the top of the viewport.
                         this.$nextTick(() => {
-                            if (
-                                typeof this.lastScrollY === "number" &&
-                                this.lastScrollY > 0
-                            ) {
-                                window.scrollTo({
-                                    top: this.lastScrollY,
-                                    behavior: "smooth",
-                                });
-                            } else if (previousImage) {
-                                const selector =
-                                    '[data-gallery-item][data-image="' +
-                                    previousImage.replace(/"/g, '\\"') +
-                                    '"]';
-                                const root = this.$refs.galleryGrid || this.$el;
-                                const galleryItem =
-                                    root.querySelector(selector);
-                                if (galleryItem) {
-                                    const header =
-                                        document.querySelector("#site-header");
-                                    const headerHeight = header
-                                        ? header.getBoundingClientRect().height
-                                        : 0;
-
-                                    const rect =
-                                        galleryItem.getBoundingClientRect();
-                                    const targetY =
-                                        window.scrollY +
-                                        rect.top -
-                                        headerHeight;
-
+                            requestAnimationFrame(() => {
+                                if (
+                                    typeof this.lastScrollY === "number" &&
+                                    this.lastScrollY > 0
+                                ) {
                                     window.scrollTo({
-                                        top: targetY,
-                                        behavior: "smooth",
+                                        top: this.lastScrollY,
                                     });
+                                } else if (previousImage) {
+                                    const selector =
+                                        '[data-gallery-item][data-image="' +
+                                        previousImage.replace(/"/g, '\\"') +
+                                        '"]';
+                                    const root =
+                                        this.$refs.galleryGrid || this.$el;
+                                    const galleryItem =
+                                        root.querySelector(selector);
+                                    if (galleryItem) {
+                                        const header =
+                                            document.querySelector(
+                                                "#site-header",
+                                            );
+                                        const headerHeight = header
+                                            ? header.getBoundingClientRect()
+                                                  .height
+                                            : 0;
+
+                                        const rect =
+                                            galleryItem.getBoundingClientRect();
+                                        const targetY =
+                                            window.scrollY +
+                                            rect.top -
+                                            headerHeight;
+
+                                        window.scrollTo({
+                                            top: targetY,
+                                        });
+                                    }
                                 }
-                            }
+                            });
                         });
                     },
                     updateFromHash() {
@@ -238,7 +242,7 @@
         </script>
     </head>
     <body
-        class="min-h-screen flex flex-col items-center pt-10"
+        class="min-h-screen flex flex-col items-center pt-10 max-w-7xl mx-auto w-full"
         x-data="{
             showPhotos: false,
             init() {
@@ -378,8 +382,8 @@
                                     >Montana</a
                                 >
                                 and lived in New York City for many years before
-                                moving to Finland in 2021.<br />
-                                Big Sky to Big Apple to Big Sauna.
+                                moving to Finland in 2021. Big Sky to Big Apple
+                                to Big Sauna.
                             </p>
 
                             <p class="mt-1 mb-6 text-gray-700">
@@ -393,8 +397,8 @@
                                     >Posti</a
                                 >, Finland's post office and logistics company.
                                 In the past, I've had roles ranging from backend
-                                software engineer to policy data analyst to
-                                public school teacher. My
+                                software engineer to government policy data
+                                analyst to public school teacher. My
                                 <a
                                     href="assets/files/erickson_cv.pdf"
                                     class="underline"
@@ -454,7 +458,12 @@
 
                             <p class="mt-1 mb-6 text-gray-700">
                                 Please take a look at my
-                                <a href="#photos" class="underline" @click.prevent="goPhotos()">photos</a>
+                                <a
+                                    href="#photos"
+                                    class="underline"
+                                    @click.prevent="goPhotos()"
+                                    >photos</a
+                                >
                                 if you like.
                             </p>
 
@@ -521,7 +530,10 @@
                                                             d="M6.62 3.16a1 1 0 0 1 1.11-.27l3 1.2a1 1 0 0 1 .61.74l.5 2.7a1 1 0 0 1-.27.86l-1.72 1.72a11.05 11.05 0 0 0 4.95 4.95l1.72-1.72a1 1 0 0 1 .86-.27l2.7.5a1 1 0 0 1 .74.61l1.2 3a1 1 0 0 1-.27 1.11l-2.1 2.1a2.5 2.5 0 0 1-2.35.66c-3.02-.76-5.8-2.54-8.28-5.02-2.48-2.48-4.26-5.26-5.02-8.28a2.5 2.5 0 0 1 .66-2.35l2.1-2.1Z"
                                                         />
                                                     </svg>
-                                                    <span class="hidden md:inline">/</span>
+                                                    <span
+                                                        class="hidden md:inline"
+                                                        >/</span
+                                                    >
                                                     <!-- Text message icon -->
                                                     <svg
                                                         xmlns="http://www.w3.org/2000/svg"
@@ -639,7 +651,10 @@
             <!-- Photos content -->
             <div class="mt-6" x-show="showPhotos">
                 <div x-data="mediaGallery" x-init="init()">
-                    <div class="max-w-6xl mx-auto" :class="selectedImage ? 'px-0' : 'px-4'">
+                    <div
+                        class="max-w-6xl mx-auto"
+                        :class="selectedImage ? 'px-0' : 'px-4'"
+                    >
                         <main>
                             <!-- Gallery -->
                             <section x-show="!selectedImage">
@@ -722,7 +737,7 @@
                             </section>
 
                             <!-- Selected media viewer -->
-                            <section x-show="selectedImage" x-transition>
+                            <section x-show="selectedImage">
                                 <div class="w-full">
                                     <div
                                         class="mb-4 flex items-center justify-between w-full"
@@ -1418,7 +1433,7 @@
         </div>
 
         <!-- Footer -->
-        <footer class="w-full bg-white mt-8">
+        <footer class="w-full bg-white mt-4">
             <div class="w-11/12 md:w-2/3 mx-auto mb-6">
                 <hr class="mb-2 border-t border-gray-400 w-full" />
                 <div
