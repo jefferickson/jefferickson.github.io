@@ -167,7 +167,7 @@
                         // the sticky header in place.
                         const grid = this.$refs.galleryGrid;
                         if (grid) {
-                            grid.style.visibility = 'hidden';
+                            grid.style.visibility = "hidden";
                         }
 
                         this.selectedImage = null;
@@ -223,13 +223,15 @@
 
                                 // Reveal gallery now that scroll is correct
                                 if (grid) {
-                                    grid.style.visibility = '';
+                                    grid.style.visibility = "";
                                 }
 
                                 // Restart mobile autoplay videos that the
                                 // browser paused while the gallery was hidden
                                 if (window.innerWidth < 768 && grid) {
-                                    grid.querySelectorAll('video[autoplay]').forEach(v => {
+                                    grid.querySelectorAll(
+                                        "video[autoplay]",
+                                    ).forEach((v) => {
                                         v.play().catch(() => {});
                                     });
                                 }
