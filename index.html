@@ -173,6 +173,15 @@
                         // the gallery so that the previously selected image is at
                         // the top of the viewport.
                         this.$nextTick(() => {
+                            // Hide gallery visually while we restore scroll
+                            // position to prevent a flash of content at the
+                            // wrong offset (visibility:hidden keeps layout so
+                            // the page is tall enough to scroll into).
+                            const grid = this.$refs.galleryGrid;
+                            if (grid) {
+                                grid.style.visibility = 'hidden';
+                            }
+
                             requestAnimationFrame(() => {
                                 if (
                                     typeof this.lastScrollY === "number" &&
@@ -186,8 +195,7 @@
                                         '[data-gallery-item][data-image="' +
                                         previousImage.replace(/"/g, '\\"') +
                                         '"]';
-                                    const root =
-                                        this.$refs.galleryGrid || this.$el;
+                                    const root = grid || this.$el;
                                     const galleryItem =
                                         root.querySelector(selector);
                                     if (galleryItem) {
@@ -211,6 +219,19 @@
                                             top: targetY,
                                         });
                                     }
+                                }
+
+                                // Reveal gallery now that scroll is correct
+                                if (grid) {
+                                    grid.style.visibility = '';
+                                }
+
+                                // Restart mobile autoplay videos that the
+                                // browser paused while the gallery was hidden
+                                if (window.innerWidth < 768 && grid) {
+                                    grid.querySelectorAll('video[autoplay]').forEach(v => {
+                                        v.play().catch(() => {});
+                                    });
                                 }
                             });
                         });
@@ -258,6 +279,12 @@
             },
             goHome() {
                 const wasShowingAbout = !this.showPhotos;
+                // Synchronously hide photos before any state changes
+                // so the gallery cannot flash during the transition
+                // (e.g. IntersectionObserver firing loadMore).
+                if (!wasShowingAbout && this.$refs.photosView) {
+                    this.$refs.photosView.style.display = 'none';
+                }
                 this.showPhotos = false;
                 if (window.history && window.history.replaceState) {
                     const oldURL = window.location.href;
@@ -649,7 +676,7 @@
             </div>
 
             <!-- Photos content -->
-            <div class="mt-6" x-show="showPhotos">
+            <div class="mt-6" x-show="showPhotos" x-ref="photosView">
                 <div x-data="mediaGallery" x-init="init()">
                     <div
                         class="max-w-6xl mx-auto"
