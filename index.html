@@ -161,6 +161,15 @@
                     },
                     clearSelection() {
                         const previousImage = this.selectedImage;
+
+                        // Hide the gallery grid *before* it becomes visible
+                        // so there is no frame where photos render without
+                        // the sticky header in place.
+                        const grid = this.$refs.galleryGrid;
+                        if (grid) {
+                            grid.style.visibility = 'hidden';
+                        }
+
                         this.selectedImage = null;
                         const hash = window.location.hash;
                         if (hash.startsWith("#photo=")) {
@@ -173,15 +182,6 @@
                         // the gallery so that the previously selected image is at
                         // the top of the viewport.
                         this.$nextTick(() => {
-                            // Hide gallery visually while we restore scroll
-                            // position to prevent a flash of content at the
-                            // wrong offset (visibility:hidden keeps layout so
-                            // the page is tall enough to scroll into).
-                            const grid = this.$refs.galleryGrid;
-                            if (grid) {
-                                grid.style.visibility = 'hidden';
-                            }
-
                             requestAnimationFrame(() => {
                                 if (
                                     typeof this.lastScrollY === "number" &&
